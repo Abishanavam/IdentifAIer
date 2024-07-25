@@ -7,6 +7,8 @@ from datetime import datetime
 import tempfile
 import matplotlib.pyplot as plt
 from collections import Counter
+from dotenv import load_dotenv
+import os
 
 # Load environment variables
 load_dotenv()
