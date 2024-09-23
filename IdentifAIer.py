@@ -6,28 +6,28 @@ from datetime import datetime
 import tempfile
 import matplotlib.pyplot as plt
 from collections import Counter
+from io import BytesIO
 
+# Load YOLO model
 net = cv2.dnn.readNet("yolo/yolov3.weights", "yolo/yolov3.cfg")
 layer_names = net.getLayerNames()
 output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
-
 with open("yolo/coco.names", "r") as f:
     classes = [line.strip() for line in f.readlines()]
 
+# Function to load image
 def load_image(image_file):
     img = Image.open(image_file)
     return img
 
+# Function to detect objects
 def detect_objects(img):
     height, width, channels = img.shape
     blob = cv2.dnn.blobFromImage(img, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
     net.setInput(blob)
     outs = net.forward(output_layers)
 
-    class_ids = []
-    confidences = []
-    boxes = []
-    detected_objects = []
+    class_ids, confidences, boxes, detected_objects = [], [], [], []
 
     for out in outs:
         for detection in out:
@@ -35,63 +35,76 @@ def detect_objects(img):
             class_id = np.argmax(scores)
             confidence = scores[class_id]
             if confidence > 0.5:
-                center_x = int(detection[0] * width)
-                center_y = int(detection[1] * height)
-                w = int(detection[2] * width)
-                h = int(detection[3] * height)
-                x = int(center_x - w / 2)
-                y = int(center_y - h / 2)
+                center_x, center_y = int(detection[0] * width), int(detection[1] * height)
+                w, h = int(detection[2] * width), int(detection[3] * height)
+                x, y = int(center_x - w / 2), int(center_y - h / 2)
                 boxes.append([x, y, w, h])
                 confidences.append(float(confidence))
                 class_ids.append(class_id)
                 detected_objects.append(classes[class_id])
 
     indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
-
     for i in range(len(boxes)):
         if i in indexes:
             x, y, w, h = boxes[i]
             label = str(classes[class_ids[i]])
-            color = (0, 255, 0) 
+            color = (0, 255, 0)
             cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
             cv2.putText(img, label, (x, y - 10), cv2.FONT_HERSHEY_PLAIN, 1, color, 2)
-    
+
     return img, detected_objects
 
-def save_history(detected_objects, image_path):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    history_entry = {
-        "timestamp": timestamp,
-        "detected_objects": detected_objects,
-        "image_path": image_path
-    }
-    
+# Save detection history
+def save_history(detected_objects, image):
     if 'history' not in st.session_state:
         st.session_state['history'] = []
-    
-    st.session_state['history'].insert(0, history_entry)
-    st.rerun()  # Make sure to rerun the app after updating the session state
-    
+
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    img_data = buffered.getvalue()
+
+    if not st.session_state.get('last_uploaded') == img_data:
+        st.session_state['history'].append({
+            'image': img_data,
+            'detected_objects': detected_objects,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        st.session_state['last_uploaded'] = img_data
+
+# Retrieve history
 def fetch_history():
     return st.session_state.get('history', [])
 
+# Clear history
 def clear_history():
     st.session_state['history'] = []
-    st.rerun()  # Make sure to rerun the app after clearing the history
+    st.session_state['last_uploaded'] = None
+    st.rerun()
 
-def generate_bar_chart():
+# Display detection history
+def display_history():
     user_history = fetch_history()
+    st.sidebar.header("Detection History")
     if user_history:
-        detected_objects_list = []
-        for entry in user_history:
-            detected_objects_list.extend(entry.get('detected_objects', []))
-        
+        for idx, record in enumerate(user_history):
+            st.sidebar.write(f"Image {idx + 1} - {record['timestamp']}")
+            img = Image.open(BytesIO(record['image']))
+            st.sidebar.image(img, width=100, caption=f"Detected: {', '.join(record['detected_objects'])}")
+            st.sidebar.write("---")
+        if st.sidebar.button("Clear History"):
+            clear_history()
+    else:
+        st.sidebar.write("No history available.")
+
+# Generate bar chart
+def generate_bar_chart():
+    history = fetch_history()
+    if history:
+        detected_objects_list = [obj for record in history for obj in record['detected_objects']]
         if detected_objects_list:
             object_counts = Counter(detected_objects_list)
-            objects = list(object_counts.keys())
-            counts = list(object_counts.values())
+            objects, counts = zip(*object_counts.items())
 
-            # Plotting the bar chart
             fig, ax = plt.subplots()
             ax.bar(objects, counts, color='skyblue')
             ax.set_xlabel('Objects')
@@ -99,47 +112,14 @@ def generate_bar_chart():
             ax.set_title('Frequency of Detected Objects')
             plt.xticks(rotation=45, ha='right')
             st.pyplot(fig)
-        else:
-            st.write("No objects detected yet.")
-    else:
-        st.write("No history available.")
-        
-if 'authenticated' not in st.session_state:
-    st.session_state['authenticated'] = True 
 
-if 'show_graph' not in st.session_state:
-    st.session_state['show_graph'] = False
-
-st.sidebar.header("View Detected Object Frequency")
-if st.sidebar.button("Show/Hide Graph"):
-    st.session_state['show_graph'] = not st.session_state['show_graph']
-    st.rerun()  # Make sure to rerun the app when toggling the graph
-
-st.sidebar.header("Your History")
-user_history = fetch_history()
-
-if st.sidebar.button("Clear History"):
-    clear_history()
-
-if user_history:
-    for entry in user_history:
-        st.sidebar.write(f"Timestamp: {entry['timestamp']}")
-        st.sidebar.image(entry['image_path'], width=150)
-        st.sidebar.write("Detected objects:")
-        for obj in entry['detected_objects']:
-            st.sidebar.write(f"- {obj}")
-        st.sidebar.write("---")
-else:
-    st.sidebar.write("No history available.")
-
+# Main function
 st.title("Welcome to Identif:red[AI]er")
-st.subheader("Transform Your Images into Intelligent Insights")
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     image = load_image(uploaded_file)
     st.image(image, caption='Uploaded Image.', use_column_width=True)
-    st.write("Detecting objects...")
 
     img_array = np.array(image)
     img = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
@@ -152,33 +132,15 @@ if uploaded_file is not None:
     for obj in detected_objects:
         st.write(f"- {obj}")
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-        detected_img.save(tmp_file.name)
-        tmp_file_path = tmp_file.name
-        
-    save_history(detected_objects, tmp_file_path)
+    save_history(detected_objects, detected_img)
 
-if st.session_state['show_graph']:
+# Sidebar
+display_history()
+
+# Graph section
+st.sidebar.header("View Detected Object Frequency")
+if st.sidebar.button("Show/Hide Graph"):
+    st.session_state['show_graph'] = not st.session_state.get('show_graph', False)
+if st.session_state.get('show_graph', False):
     st.subheader("Detected Objects Frequency")
     generate_bar_chart()
-    if st.button("Close Graph"):
-        st.session_state['show_graph'] = False
-        st.rerun()
-
-footer = """
-<style>
-.footer {
-position: fixed;
-left: 0;
-bottom: 0;
-width: 100%;
-background-color: white;
-color: black;
-text-align: center;
-}
-</style>
-<div class="footer">
-<p>Developed by <a style='display: block; text-align: center;' href="mailto:itbin-2110-0074@horizoncampus.edu.lk" target="_blank">Abisha Navaneethamani</a></p>
-</div>
-"""
-st.markdown(footer, unsafe_allow_html=True)
