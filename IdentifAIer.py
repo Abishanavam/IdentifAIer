@@ -7,6 +7,7 @@ import tempfile
 import matplotlib.pyplot as plt
 from collections import Counter
 
+# Load YOLO model
 net = cv2.dnn.readNet("yolo/yolov3.weights", "yolo/yolov3.cfg")
 layer_names = net.getLayerNames()
 output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
@@ -14,10 +15,12 @@ output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
 with open("yolo/coco.names", "r") as f:
     classes = [line.strip() for line in f.readlines()]
 
+# Load the image
 def load_image(image_file):
     img = Image.open(image_file)
     return img
 
+# Detect objects in the image
 def detect_objects(img):
     height, width, channels = img.shape
     blob = cv2.dnn.blobFromImage(img, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
@@ -58,6 +61,7 @@ def detect_objects(img):
     
     return img, detected_objects
 
+# Save the detection history
 def save_history(detected_objects, image_path):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     history_entry = {
@@ -71,12 +75,15 @@ def save_history(detected_objects, image_path):
     
     st.session_state['history'].insert(0, history_entry) 
     
+# Fetch the detection history
 def fetch_history():
     return st.session_state.get('history', [])
 
+# Clear the detection history
 def clear_history():
     st.session_state['history'] = []
 
+# Generate a bar chart of detected object frequencies
 def generate_bar_chart():
     user_history = fetch_history()
     if user_history:
@@ -102,12 +109,14 @@ def generate_bar_chart():
     else:
         st.write("No history available.")
         
+# Initialize session state variables
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = True 
 
 if 'show_graph' not in st.session_state:
     st.session_state['show_graph'] = False
 
+# Sidebar options for history and graph
 st.sidebar.header("View Detected Object Frequency")
 if st.sidebar.button("Show/Hide Graph"):
     st.session_state['show_graph'] = not st.session_state['show_graph']
@@ -117,7 +126,7 @@ user_history = fetch_history()
 
 if st.sidebar.button("Clear History"):
     clear_history()
-    st.rerun()
+    st.experimental_rerun()  # Using rerun to clear the history immediately
 
 if user_history:
     for entry in user_history:
@@ -130,6 +139,7 @@ if user_history:
 else:
     st.sidebar.write("No history available.")
 
+# Main app section
 st.title("Welcome to Identif:red[AI]er")
 st.subheader("Transform Your Images into Intelligent Insights")
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
@@ -156,12 +166,10 @@ if uploaded_file is not None:
         
     save_history(detected_objects, tmp_file_path)
 
+# Display the detected object frequency graph
 if st.session_state['show_graph']:
     st.subheader("Detected Objects Frequency")
     generate_bar_chart()
-    if st.button("Close Graph"):
-        st.session_state['show_graph'] = False
-        st.rerun()
 
 footer = """
 <style>
