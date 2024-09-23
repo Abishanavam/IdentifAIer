@@ -117,7 +117,7 @@ user_history = fetch_history()
 
 if st.sidebar.button("Clear History"):
     clear_history()
-    st.experimental_rerun()
+    st.rerun()
 
 if user_history:
     for entry in user_history:
@@ -161,7 +161,7 @@ if st.session_state['show_graph']:
     generate_bar_chart()
     if st.button("Close Graph"):
         st.session_state['show_graph'] = False
-        st.experimental_rerun()
+        st.rerun()
 
 footer = """
 <style>
