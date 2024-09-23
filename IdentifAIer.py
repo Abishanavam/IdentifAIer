@@ -8,19 +8,16 @@ import matplotlib.pyplot as plt
 from collections import Counter
 from io import BytesIO
 
-# Load YOLO model
 net = cv2.dnn.readNet("yolo/yolov3.weights", "yolo/yolov3.cfg")
 layer_names = net.getLayerNames()
 output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
 with open("yolo/coco.names", "r") as f:
     classes = [line.strip() for line in f.readlines()]
 
-# Function to load image
 def load_image(image_file):
     img = Image.open(image_file)
     return img
 
-# Function to detect objects
 def detect_objects(img):
     height, width, channels = img.shape
     blob = cv2.dnn.blobFromImage(img, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
@@ -54,7 +51,6 @@ def detect_objects(img):
 
     return img, detected_objects
 
-# Save detection history
 def save_history(detected_objects, image):
     if 'history' not in st.session_state:
         st.session_state['history'] = []
@@ -71,17 +67,14 @@ def save_history(detected_objects, image):
         })
         st.session_state['last_uploaded'] = img_data
 
-# Retrieve history
 def fetch_history():
     return st.session_state.get('history', [])
 
-# Clear history
 def clear_history():
     st.session_state['history'] = []
     st.session_state['last_uploaded'] = None
     st.rerun()
 
-# Display detection history
 def display_history():
     user_history = fetch_history()
     st.sidebar.header("Detection History")
@@ -96,7 +89,6 @@ def display_history():
     else:
         st.sidebar.write("No history available.")
 
-# Generate bar chart
 def generate_bar_chart():
     history = fetch_history()
     if history:
@@ -113,7 +105,6 @@ def generate_bar_chart():
             plt.xticks(rotation=45, ha='right')
             st.pyplot(fig)
 
-# Main function
 st.title("Welcome to Identif:red[AI]er")
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
@@ -134,13 +125,29 @@ if uploaded_file is not None:
 
     save_history(detected_objects, detected_img)
 
-# Sidebar
 display_history()
 
-# Graph section
 st.sidebar.header("View Detected Object Frequency")
 if st.sidebar.button("Show/Hide Graph"):
     st.session_state['show_graph'] = not st.session_state.get('show_graph', False)
 if st.session_state.get('show_graph', False):
     st.subheader("Detected Objects Frequency")
     generate_bar_chart()
+
+footer = """
+<style>
+.footer {
+position: fixed;
+left: 0;
+bottom: 0;
+width: 100%;
+background-color: white;
+color: black;
+text-align: center;
+}
+</style>
+<div class="footer">
+<p>Developed by <a style='display: block; text-align: center;' href="mailto:itbin-2110-0074@horizoncampus.edu.lk" target="_blank">Abisha Navaneethamani</a></p>
+</div>
+"""
+st.markdown(footer, unsafe_allow_html=True)
