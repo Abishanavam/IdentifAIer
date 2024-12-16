@@ -20,7 +20,6 @@ def download_file(url, output_path):
         else:
             st.error(f"Failed to download {os.path.basename(output_path)}")
 
-# Ensure YOLO files are downloaded
 weights_url = "https://drive.google.com/uc?id=1LlljjyQR9JEI6cnFIXJitfYdIukgcz-u"
 cfg_url = "https://raw.githubusercontent.com/pjreddie/darknet/master/cfg/yolov3.cfg"
 names_url = "https://raw.githubusercontent.com/pjreddie/darknet/master/data/coco.names"
@@ -33,7 +32,6 @@ download_file(weights_url, weights_path)
 download_file(cfg_url, cfg_path)
 download_file(names_url, names_path)
 
-# Load YOLO model
 net = cv2.dnn.readNet(weights_path, cfg_path)
 layer_names = net.getLayerNames()
 output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
