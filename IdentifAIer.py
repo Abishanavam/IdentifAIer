@@ -1,17 +1,43 @@
+import os
+import requests
 import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
 from datetime import datetime
-import tempfile
-import matplotlib.pyplot as plt
 from collections import Counter
 from io import BytesIO
+import matplotlib.pyplot as plt
 
-net = cv2.dnn.readNet("yolo/yolov3.weights", "yolo/yolov3.cfg")
+def download_file(url, output_path):
+    if not os.path.exists(output_path):
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        response = requests.get(url)
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(response.content)
+            st.success(f"Downloaded: {os.path.basename(output_path)}")
+        else:
+            st.error(f"Failed to download {os.path.basename(output_path)}")
+
+# Ensure YOLO files are downloaded
+weights_url = "https://drive.google.com/uc?id=1LlljjyQR9JEI6cnFIXJitfYdIukgcz-u"
+cfg_url = "https://raw.githubusercontent.com/pjreddie/darknet/master/cfg/yolov3.cfg"
+names_url = "https://raw.githubusercontent.com/pjreddie/darknet/master/data/coco.names"
+
+weights_path = "yolo/yolov3.weights"
+cfg_path = "yolo/yolov3.cfg"
+names_path = "yolo/coco.names"
+
+download_file(weights_url, weights_path)
+download_file(cfg_url, cfg_path)
+download_file(names_url, names_path)
+
+# Load YOLO model
+net = cv2.dnn.readNet(weights_path, cfg_path)
 layer_names = net.getLayerNames()
 output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
-with open("yolo/coco.names", "r") as f:
+with open(names_path, "r") as f:
     classes = [line.strip() for line in f.readlines()]
 
 def load_image(image_file):
